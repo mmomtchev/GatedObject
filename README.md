@@ -8,7 +8,7 @@ Supports blocking synchronous, asynchronous and non-blocking polling
 
 ## Introduction
 
-I created this module to be able to use advanced data structures that can not be easily rendered multi-threading-capable. Keep in mind that this works through RPC so it is an order of magnitude slow than [SharedMap](https://github.com/mmomtchev/SharedMap) which was built from the ground-up for multi-threading. Its advantage is that it is completely transparent and supports (almost) all existing JS libraries.
+I created this module to be able to use advanced data structures that can not be easily rendered multi-threading-capable. Keep in mind that this works through RPC so it is an order of magnitude slower than [SharedMap](https://github.com/mmomtchev/SharedMap) which was built from the ground-up for multi-threading. Its advantage is that it is completely transparent and supports (almost) all existing JS libraries.
 
 It supports three modes of operation
 * synchronous, which is the most natural to use but it is slow and wasteful
@@ -19,12 +19,12 @@ Run npm test to see how much ops/s you will get with each method in your case. T
 
 The module supports gating primitive types as Date and String, but if this is what you need [objectbuffer](https://github.com/Bnaya/objectbuffer) which uses shared memory is a much better choice.
 
-Keep in mind that the current version of test.js (as well as the examples), make use of *transferList* in the *Worker* constructor which requires an up-to-date Node.js LTS [#32250](https://github.com/nodejs/node/issues/32250). The module itself should work on older versions.
+The current version of test.js (as well as the examples), make use of *transferList* in the *Worker* constructor which requires an up-to-date Node.js LTS [#32250](https://github.com/nodejs/node/issues/32250). The module itself should work on older versions.
 
 
 ## Installation
 
-(the 0.0.1 version is not yet published, clone from here if you want it)
+*(the 0.0.1 version is not yet published, clone from here if you want it)*
 
 ```bash
 npm install --save gatedobject
