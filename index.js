@@ -105,8 +105,10 @@ class GatedObjectSync extends GatedObject {
         super(...args);
     }
 
-    __GatedObject_do(...args) {
-        super.__GatedObject_do(...args);
+    __GatedObject_do(a, ...args) {
+        super.__GatedObject_do(a, ...args);
+        if (a === IGNORE_RETURN)
+            return undefined;
         let msg;
         while ((msg = receiveMessageOnPort(this.o.port)) === undefined);
         if (msg.message.e)
@@ -152,8 +154,10 @@ class GatedObjectAsync extends GatedObject {
             lock.res(message.r);
     }
 
-    __GatedObject_do(...args) {
-        super.__GatedObject_do(...args);
+    __GatedObject_do(a, ...args) {
+        super.__GatedObject_do(a, ...args);
+        if (a === IGNORE_RETURN)
+            return Promise.resolve(undefined);
         return new Promise((res, rej) => {
             this.o.locks.push({ res, rej });
         });
@@ -181,10 +185,12 @@ class GatedObjectPolling extends GatedObject {
      * Polls the interface for a return value
      * @param {boolean} block will block if called with block=true
      * @returns {*|undefined} undefined if the RPC is not finished, the return value otherwise
+     * Don't call poll if you use IGNORE_RETURN
      */
     poll(block) {
         let msg;
-        while ((msg = receiveMessageOnPort(this.port)) === undefined && !block);
+        while ((msg = receiveMessageOnPort(this.port)) === undefined && block);
+        //console.log(msg, block);
         if (!msg)
             return undefined;
         if (msg.message.e)
@@ -207,8 +213,9 @@ function processRequest(message) {
         if (message.a[0] === IGNORE_RETURN) {
             message.a.shift();
             o[message.m].apply(o, message.a);
-        } else
-            r = o[message.m].apply(o, message.a);
+            return;
+        }
+        r = o[message.m].apply(o, message.a);
         if (r === o)
             r = THIS_RETURN;
         this.postMessage({ r });

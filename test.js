@@ -26,7 +26,7 @@ if (isMainThread) {
             const ops = CALLS * 3 * NWORKERS;
             if (finished == NWORKERS) {
                 if (myRBush.all().length !== ops)
-                    throw new Error('Coherence error');
+                    throw new Error('Coherence error ' + myRBush.all().length);
                 console.log(`sync    mode: ${tsync}ms  ${Math.round(ops * 1000 / tsync)} ops/s`);
                 console.log(`polling mode: ${tpolling}ms  ${Math.round(ops * 1000 / tpolling)} ops/s`);
                 console.log(`async   mode: ${tasync}ms  ${Math.round(ops * 1000 / tasync)} ops/s`);
@@ -49,10 +49,10 @@ if (isMainThread) {
     let tsync = Date.now() - t0;
 
     t0 = Date.now();
-    for (let i = 0; i < CALLS; i++)
-        myRBush2.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
-    for (let i = 0; i < CALLS; i++)
-        myRBush2.poll(true);
+    for (let i = 0; i < CALLS - 1; i++)
+        myRBush2.insert(IGNORE_RETURN, { minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+    myRBush2.insert({ minX: 5, minY: 5, maxX: 15, maxY: 15, data: 'data ' + 55 });
+    myRBush2.poll(true);
     let tpolling = Date.now() - t0;
 
     let p;
