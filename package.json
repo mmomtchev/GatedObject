@@ -1,0 +1,26 @@
+{
+  "name": "gatedobject",
+  "version": "0.0.1",
+  "description": "Gate interface allowing sharing non-thread-safe objects to workers through RPC",
+  "main": "index.js",
+  "scripts": {
+    "test": "node test"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/mmomtchev/GatedObject.git"
+  },
+  "keywords": [
+    "multithreading"
+  ],
+  "author": "Momtchil Momtchev <momtchil@momtchev.com>",
+  "license": "LGPL-3.0-or-later",
+  "bugs": {
+    "url": "https://github.com/mmomtchev/GatedObject/issues"
+  },
+  "homepage": "https://github.com/mmomtchev/GatedObject#readme",
+  "dependencies": {},
+  "devDependencies": {
+    "rbush": "^3.0.1"
+  }
+}
