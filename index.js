@@ -19,6 +19,7 @@ const {
 } = require('worker_threads');
 
 const IGNORE_RETURN = 'GatedObjectIgnoreReturn';
+const THIS_RETURN = 'GatedObjectThisReturn';
 
 /**
  * Abstract base class, do not use
@@ -110,6 +111,8 @@ class GatedObjectSync extends GatedObject {
         while ((msg = receiveMessageOnPort(this.o.port)) === undefined);
         if (msg.message.e)
             throw msg.message.e;
+        if (msg.message.r === THIS_RETURN)
+            return this;
         return msg.message.r;
     }
 }
@@ -143,6 +146,8 @@ class GatedObjectAsync extends GatedObject {
         const lock = this.locks.shift();
         if (message.e !== undefined)
             lock.rej(message.e);
+        else if (message.r === THIS_RETURN)
+            lock.res(this);
         else
             lock.res(message.r);
     }
@@ -184,6 +189,8 @@ class GatedObjectPolling extends GatedObject {
             return undefined;
         if (msg.message.e)
             throw msg.message.e;
+        if (msg.message.r === THIS_RETURN)
+            return this;
         return msg.message.r;
     }
 
@@ -202,6 +209,8 @@ function processRequest(message) {
             o[message.m].apply(o, message.a);
         } else
             r = o[message.m].apply(o, message.a);
+        if (r === o)
+            r = THIS_RETURN;
         this.postMessage({ r });
     } catch (e) {
         this.postMessage({ e });

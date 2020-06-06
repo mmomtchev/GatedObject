@@ -45,12 +45,12 @@ if (isMainThread) {
 
     let t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
-        myRBush1.insert(IGNORE_RETURN, { minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        myRBush1.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
     let tsync = Date.now() - t0;
 
     t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
-        myRBush2.insert(IGNORE_RETURN, { minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        myRBush2.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
     for (let i = 0; i < CALLS; i++)
         myRBush2.poll(true);
     let tpolling = Date.now() - t0;
@@ -58,7 +58,7 @@ if (isMainThread) {
     let p;
     t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
-        p = myRBush3.insert(IGNORE_RETURN, { minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        p = myRBush3.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
     let tasync = Date.now() - t0;
     parentPort.postMessage({ tsync, tasync, tpolling });
     p.then(() => {

@@ -67,6 +67,8 @@ if (isMainThread) {
      * which allows you to avoid copying large return results when you ignore them
      * RBush.insert() is an excellent example as it will return this (the whole data structure)
      * so that operations can be chained like this RBush.insert().insert().insert()...
+     * In that particular case this will be recognized and a reference local to the
+     * thread will be returned, but there other cases you might need it
      */
     myRBush.insert(IGNORE_RETURN, { minX: 2, minY: 2, maxX: 5, maxY: 5, data: 'data2' });
 } else {
@@ -88,7 +90,7 @@ if (isMainThread) {
 
 ### Asynchronous mode
 ```js
-const { IGNORE_RETURN, GatedObjectAsync, GatedObjectSync, GatedObjectPolling } = require('./index');
+const { GatedObjectAsync, GatedObjectSync, GatedObjectPolling } = require('./index');
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 
 if (isMainThread) {
@@ -113,7 +115,7 @@ if (isMainThread) {
 
     /* All methods return a promise now */
     myRBush.insert({ minX: 1, minY: 1, maxX: 10, maxY: 10, data: 'data1' })
-        .then(() => myRBush.insert(IGNORE_RETURN, { minX: 2, minY: 2, maxX: 5, maxY: 5, data: 'data2' }))
+        .then(() => myRBush.insert({ minX: 2, minY: 2, maxX: 5, maxY: 5, data: 'data2' }))
         .catch((e) => console.error(e));
 } else {
     /**
@@ -135,7 +137,7 @@ if (isMainThread) {
 
 ### Polling mode
 ```js
-const { IGNORE_RETURN, GatedObjectAsync, GatedObjectSync, GatedObjectPolling } = require('./index');
+const { GatedObjectAsync, GatedObjectSync, GatedObjectPolling } = require('./index');
 const { Worker, isMainThread, parentPort, workerData } = require('worker_threads');
 
 if (isMainThread) {
