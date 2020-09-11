@@ -31,6 +31,8 @@ class GatedObject {
         if (typeof arg === 'object' && arg.magic === 'GatedObjectMagic') {
             this.port = arg.port;
             this.methods = arg.methods;
+            this.shared = arg.shared;
+            this.lock = new Int32Array(this.shared);
         } else {
             /* We are creating a new GatedObject
              *
@@ -41,7 +43,7 @@ class GatedObject {
              * otherwise perfectly valid JS code
              */
             const ownerThread = `
-                const { parentPort } = require('worker_threads');
+                const { parentPort, workerData } = require('worker_threads');
                 const IGNORE_RETURN = '${IGNORE_RETURN}';
                 const THIS_RETURN = '${THIS_RETURN}';
                 function processRequest(message) {
@@ -58,10 +60,13 @@ class GatedObject {
                         this.postMessage({ r });
                     } catch (e) {
                         this.postMessage({ e });
+                    } finally {
+                        Atomics.add(lock, 0, 1);
+                        Atomics.notify(lock, 0);
                     }
                 }
                 let o = (() => {${arg}})();
-                let _class;
+                let lock = new Int32Array(workerData.shared);
                 parentPort.on('message', (message) => {
                     if (message.newPort) {
                         message.newPort.on('message', processRequest.bind(message.newPort));
@@ -69,11 +74,21 @@ class GatedObject {
                 });`;
 
             const prototype = Function('require', arg)(require);
+            this.shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
+            this.lock = new Int32Array(this.shared);
+
             /* Every GatedObject has a thread that owns the object */
             this.thread = new Worker(ownerThread, {
                 eval: true,
+                workerData: {
+                    shared: this.shared
+                }
             });
             this.port = this.__GatedObject_createChannel();
+            Atomics.store(this.lock, 0, 0);
+            /* I wonder if prototype is referenced after this operation or it can be garbage-collected?
+             * Normally the prototype property should be a reference to the class itself
+             */
             this.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(prototype));
         }
 
@@ -92,6 +107,7 @@ class GatedObject {
         return {
             magic: 'GatedObjectMagic',
             port: this.__GatedObject_createChannel(),
+            shared: this.shared,
             methods: this.methods
         };
     }
@@ -113,10 +129,8 @@ class GatedObject {
 class GatedObjectSync extends GatedObject {
     /**
      * Creates new GatedObject
-     * @param {string} objClass CJS filename containting the class to be instantiated or built-in type
-     * @param {string} subClass Class/constructor name or null if the CJS module is the constructor
-     * @param {...*} args Arguments to be passed to the constructor
-     * The created object will have the same methods as objClass
+     * @param {string} arg JS code that calls the constructor for the proxied object
+     * The created object will have the same methods as the original one
      * All methods will have an optional first argument, IGNORE_RETURN, allowing
      * to avoid transfering large return values when they are not used
      * Typical example is Map.set() which returns this so it can be chained as Map.set().set()
@@ -131,7 +145,9 @@ class GatedObjectSync extends GatedObject {
         if (a === IGNORE_RETURN)
             return undefined;
         let msg;
-        while ((msg = receiveMessageOnPort(this.o.port)) === undefined);
+        while ((msg = receiveMessageOnPort(this.o.port)) === undefined)
+            while (Atomics.wait(this.o.lock, 0, 0) == 'ok')
+        Atomics.sub(this.o.lock, 0, 1);
         if (msg.message.e)
             throw msg.message.e;
         if (msg.message.r === THIS_RETURN)
@@ -149,10 +165,8 @@ class GatedObjectSync extends GatedObject {
 class GatedObjectAsync extends GatedObject {
     /**
      * Creates new GatedObject
-     * @param {string} objClass CJS filename containting the class to be instantiated or built-in type
-     * @param {string} subClass Class/constructor name or null if the CJS module is the constructor
-     * @param {...*} args Arguments to be passed to the constructor
-     * The created object will have the same methods as objClass except
+     * @param {string} arg JS code that calls the constructor for the proxied object
+     * The created object will have the same methods as the original one except
      * that they will always return a Promise that will resolve with the return value
      * Exceptions will be transformed to rejected Promises
      * All methods will have an optional first argument, IGNORE_RETURN, allowing
@@ -167,6 +181,7 @@ class GatedObjectAsync extends GatedObject {
 
     __GatedObject_processResponse(message) {
         const lock = this.locks.shift();
+        Atomics.sub(this.lock, 0, 1);
         if (message.e !== undefined)
             lock.rej(message.e);
         else if (message.r === THIS_RETURN)
@@ -194,9 +209,7 @@ class GatedObjectAsync extends GatedObject {
 class GatedObjectPolling extends GatedObject {
     /**
      * Creates new GatedObject
-     * @param {string} objClass CJS filename containting the class to be instantiated or built-in type
-     * @param {string} subClass Class/constructor name or null if the CJS module is the constructor
-     * @param {...*} args Arguments to be passed to the constructor
+     * @param {string} arg JS code that calls the constructor for the proxied object
      */
     constructor(...args) {
         super(...args);
@@ -210,7 +223,9 @@ class GatedObjectPolling extends GatedObject {
      */
     poll(block) {
         let msg;
-        while ((msg = receiveMessageOnPort(this.port)) === undefined && block);
+        while ((msg = receiveMessageOnPort(this.port)) === undefined && block)
+            Atomics.wait(this.lock, 0, 0);
+        Atomics.sub(this.lock, 0, 1);
         //console.log(msg, block);
         if (!msg)
             return undefined;
