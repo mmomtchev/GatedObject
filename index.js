@@ -26,33 +26,55 @@ const THIS_RETURN = 'GatedObjectThisReturn';
  * @private
  */
 class GatedObject {
-    constructor(objClass, subClass) {
+    constructor(arg) {
         /* We are acquiring an existing GatedObject in a subthread */
-        if (typeof objClass === 'object' && objClass.magic === 'GatedObjectMagic') {
-            this.port = objClass.port;
-            this.methods = objClass.methods;
-            this.file = objClass.file;
+        if (typeof arg === 'object' && arg.magic === 'GatedObjectMagic') {
+            this.port = arg.port;
+            this.methods = arg.methods;
         } else {
-            /* We are creating a new GatedObject */
-            let _class;
-            if (globalThis[objClass])
-                _class = globalThis[objClass];
-            else {
-                _class = require(objClass);
-                if (subClass)
-                    _class = _class[subClass];
-                this.file = objClass;
-            }
-            this.thread = new Worker(__filename, {
-                workerData: {
-                    magic: 'GatedObjectMagic',
-                    objClass: objClass,
-                    subClass: subClass,
-                    arguments: Object.keys(arguments).map(x => arguments[x]).slice(2)
+            /* We are creating a new GatedObject
+             *
+             * This JS at its finest
+             * Next time when someone asks you why
+             * it is impossible to create a JS compiler,
+             * show him this absolutely horrible but
+             * otherwise perfectly valid JS code
+             */
+            const ownerThread = `
+                const { parentPort } = require('worker_threads');
+                const IGNORE_RETURN = '${IGNORE_RETURN}';
+                const THIS_RETURN = '${THIS_RETURN}';
+                function processRequest(message) {
+                    try {
+                        let r;
+                        if (message.a[0] === IGNORE_RETURN) {
+                            message.a.shift();
+                            o[message.m].apply(o, message.a);
+                            return;
+                        }
+                        r = o[message.m].apply(o, message.a);
+                        if (r === o)
+                            r = THIS_RETURN;
+                        this.postMessage({ r });
+                    } catch (e) {
+                        this.postMessage({ e });
+                    }
                 }
+                let o = (() => {${arg}})();
+                let _class;
+                parentPort.on('message', (message) => {
+                    if (message.newPort) {
+                        message.newPort.on('message', processRequest.bind(message.newPort));
+                    }
+                });`;
+
+            const prototype = Function('require', arg)(require);
+            /* Every GatedObject has a thread that owns the object */
+            this.thread = new Worker(ownerThread, {
+                eval: true,
             });
             this.port = this.__GatedObject_createChannel();
-            this.methods = Object.getOwnPropertyNames(_class.prototype);
+            this.methods = Object.getOwnPropertyNames(Object.getPrototypeOf(prototype));
         }
 
         for (let m of this.methods)
@@ -70,7 +92,6 @@ class GatedObject {
         return {
             magic: 'GatedObjectMagic',
             port: this.__GatedObject_createChannel(),
-            file: this.file,
             methods: this.methods
         };
     }
@@ -203,44 +224,6 @@ class GatedObjectPolling extends GatedObject {
     __GatedObject_do(...args) {
         super.__GatedObject_do(...args);
     }
-}
-
-let o;
-
-function processRequest(message) {
-    try {
-        let r;
-        if (message.a[0] === IGNORE_RETURN) {
-            message.a.shift();
-            o[message.m].apply(o, message.a);
-            return;
-        }
-        r = o[message.m].apply(o, message.a);
-        if (r === o)
-            r = THIS_RETURN;
-        this.postMessage({ r });
-    } catch (e) {
-        this.postMessage({ e });
-    }
-}
-
-if (!isMainThread && workerData !== undefined && workerData.magic === 'GatedObjectMagic') {
-    let _class;
-    if (globalThis[workerData.objClass])
-        _class = globalThis[workerData.objClass];
-    else {
-        _class = require(workerData.objClass);
-        if (workerData.subClass)
-            _class = _class[workerData.subClass];
-    }
-    workerData.arguments.unshift(null);
-    o = new (Function.prototype.bind.apply(_class, workerData.arguments))();
-
-    parentPort.on('message', (message) => {
-        if (message.newPort) {
-            message.newPort.on('message', processRequest.bind(message.newPort));
-        }
-    });
 }
 
 module.exports = {
