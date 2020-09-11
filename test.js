@@ -5,7 +5,7 @@ const NWORKERS = require('os').cpus().length;
 const CALLS = 10000;
 
 if (isMainThread) {
-    const myRBush = new GatedObjectSync('return new(require("rbush"))', null, 16);
+    const myRBush = new GatedObjectSync('return new(require("rbush"))(16)');
     let finished = 0,
         tsync = 0,
         tasync = 0,

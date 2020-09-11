@@ -95,10 +95,11 @@ const { Worker, isMainThread, parentPort, workerData } = require('worker_threads
 
 if (isMainThread) {
     /**
-     * Create a new GatedObject in sync mode with the CJS module name and the class name
-     * class name should be null when the module itself is the class/constructor
+     * Create a new GatedObject by passing code which returns
+     * If there was a Guinness entry for ugliest API, this would surely
+     * be a serious contender
      */
-    const myRBush = new GatedObjectAsync('rbush', null, 16);
+    const myRBush = new GatedObjectSync('return new(require("rbush"))(16)');
 
     /** 
      * Create a clone for a subthread 
