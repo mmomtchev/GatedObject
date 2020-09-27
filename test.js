@@ -46,6 +46,11 @@ if (isMainThread) {
     let t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
         myRBush1.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+    for (let i = 0; i < CALLS; i++) {
+        const data = myRBush1.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        if (data.length < 1)
+            throw new Error('inconsistency');
+    }
     let tsync = Date.now() - t0;
 
     t0 = Date.now();
@@ -53,15 +58,28 @@ if (isMainThread) {
         myRBush2.insert(IGNORE_RETURN, { minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
     myRBush2.insert({ minX: 5, minY: 5, maxX: 15, maxY: 15, data: 'data ' + 55 });
     myRBush2.poll(true);
+    for (let i = 0; i < CALLS; i++) {
+        myRBush2.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+    }
+    for (let i = 0; i < CALLS; i++) {
+        const data = myRBush2.poll(true);
+        if (data.length < 1)
+            throw new Error('inconsistency');
+    }
     let tpolling = Date.now() - t0;
 
     let p;
     t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
-        p = myRBush3.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        myRBush3.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+    for (let i = 0; i < CALLS; i++) {
+        p = myRBush3.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+    }
     let tasync = Date.now() - t0;
     parentPort.postMessage({ tsync, tasync, tpolling });
-    p.then(() => {
+    p.then((data) => {
+        if (data.length < 1)
+            throw new Error('inconsistency');
         process.exit(0);
     });
 }
