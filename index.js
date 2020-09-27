@@ -78,6 +78,7 @@ class GatedObject {
             this.lock = new Int32Array(this.shared);
 
             /* Every GatedObject has a thread that owns the object */
+            Atomics.store(this.lock, 0, 0);
             this.thread = new Worker(ownerThread, {
                 eval: true,
                 workerData: {
@@ -85,7 +86,6 @@ class GatedObject {
                 }
             });
             this.port = this.__GatedObject_createChannel();
-            Atomics.store(this.lock, 0, 0);
             /* I wonder if prototype is referenced after this operation or it can be garbage-collected?
              * Normally the prototype property should be a reference to the class itself
              */
