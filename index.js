@@ -32,7 +32,7 @@ class GatedObject {
             this.port = arg.port;
             this.methods = arg.methods;
             this.shared = arg.shared;
-            this.lock = new Int32Array(this.shared);
+            this.msgCounter = new Int32Array(this.shared);
         } else {
             /* We are creating a new GatedObject
              *
@@ -52,21 +52,21 @@ class GatedObject {
                         if (message.a[0] === IGNORE_RETURN) {
                             message.a.shift();
                             o[message.m].apply(o, message.a);
-                            return;
-                        }
-                        r = o[message.m].apply(o, message.a);
+                            r = {};
+                        } else 
+                            r = o[message.m].apply(o, message.a);
                         if (r === o)
                             r = THIS_RETURN;
                         this.postMessage({ r });
                     } catch (e) {
                         this.postMessage({ e });
                     } finally {
-                        Atomics.add(lock, 0, 1);
-                        Atomics.notify(lock, 0);
+                        Atomics.add(msgCounter, 0, 1);
+                        Atomics.notify(msgCounter, 0);
                     }
                 }
                 let o = (() => {${arg}})();
-                let lock = new Int32Array(workerData.shared);
+                let msgCounter = new Int32Array(workerData.shared);
                 parentPort.on('message', (message) => {
                     if (message.newPort) {
                         message.newPort.on('message', processRequest.bind(message.newPort));
@@ -75,10 +75,10 @@ class GatedObject {
 
             const prototype = Function('require', arg)(require);
             this.shared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
-            this.lock = new Int32Array(this.shared);
+            this.msgCounter = new Int32Array(this.shared);
 
             /* Every GatedObject has a thread that owns the object */
-            Atomics.store(this.lock, 0, 0);
+            Atomics.store(this.msgCounter, 0, 0);
             this.thread = new Worker(ownerThread, {
                 eval: true,
                 workerData: {
@@ -142,12 +142,10 @@ class GatedObjectSync extends GatedObject {
 
     __GatedObject_do(a, ...args) {
         super.__GatedObject_do(a, ...args);
-        if (a === IGNORE_RETURN)
-            return undefined;
         let msg;
         while ((msg = receiveMessageOnPort(this.o.port)) === undefined)
-            while (Atomics.wait(this.o.lock, 0, 0) == 'ok')
-        Atomics.sub(this.o.lock, 0, 1);
+            while (Atomics.wait(this.o.msgCounter, 0, 0) == 'ok');
+        Atomics.sub(this.o.msgCounter, 0, 1);
         if (msg.message.e)
             throw msg.message.e;
         if (msg.message.r === THIS_RETURN)
@@ -180,20 +178,18 @@ class GatedObjectAsync extends GatedObject {
     }
 
     __GatedObject_processResponse(message) {
-        const lock = this.locks.shift();
-        Atomics.sub(this.lock, 0, 1);
+        const msgCounter = this.locks.shift();
+        Atomics.sub(this.msgCounter, 0, 1);
         if (message.e !== undefined)
-            lock.rej(message.e);
+            msgCounter.rej(message.e);
         else if (message.r === THIS_RETURN)
-            lock.res(this);
+            msgCounter.res(this);
         else
-            lock.res(message.r);
+            msgCounter.res(message.r);
     }
 
     __GatedObject_do(a, ...args) {
         super.__GatedObject_do(a, ...args);
-        if (a === IGNORE_RETURN)
-            return Promise.resolve(undefined);
         return new Promise((res, rej) => {
             this.o.locks.push({ res, rej });
         });
@@ -219,14 +215,12 @@ class GatedObjectPolling extends GatedObject {
      * Polls the interface for a return value
      * @param {boolean} block will block if called with block=true
      * @returns {*|undefined} undefined if the RPC is not finished, the return value otherwise
-     * Don't call poll if you use IGNORE_RETURN
      */
     poll(block) {
         let msg;
         while ((msg = receiveMessageOnPort(this.port)) === undefined && block)
-            Atomics.wait(this.lock, 0, 0);
-        Atomics.sub(this.lock, 0, 1);
-        //console.log(msg, block);
+            Atomics.wait(this.msgCounter, 0, 0);
+        Atomics.sub(this.msgCounter, 0, 1);
         if (!msg)
             return undefined;
         if (msg.message.e)
