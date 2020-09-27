@@ -57,19 +57,19 @@ class GatedObject {
                             r = o[message.m].apply(o, message.a);
                         if (r === o)
                             r = THIS_RETURN;
-                        this.postMessage({ r });
+                        this.port.postMessage({ r });
                     } catch (e) {
-                        this.postMessage({ e });
+                        this.port.postMessage({ e });
                     } finally {
-                        Atomics.add(msgCounter, 0, 1);
-                        Atomics.notify(msgCounter, 0);
+                        Atomics.add(this.msgCounter, 0, 1);
+                        Atomics.notify(this.msgCounter, 0);
                     }
                 }
                 let o = (() => {${arg}})();
-                let msgCounter = new Int32Array(workerData.shared);
                 parentPort.on('message', (message) => {
-                    if (message.newPort) {
-                        message.newPort.on('message', processRequest.bind(message.newPort));
+                    if (message.port) {
+                        message.msgCounter = new Int32Array(message.shared);
+                        message.port.on('message', processRequest.bind(message));
                     }
                 });`;
 
@@ -80,12 +80,9 @@ class GatedObject {
             /* Every GatedObject has a thread that owns the object */
             Atomics.store(this.msgCounter, 0, 0);
             this.thread = new Worker(ownerThread, {
-                eval: true,
-                workerData: {
-                    shared: this.shared
-                }
+                eval: true
             });
-            this.port = this.__GatedObject_createChannel();
+            this.port = this.__GatedObject_createChannel(this.shared);
             /* I wonder if prototype is referenced after this operation or it can be garbage-collected?
              * Normally the prototype property should be a reference to the class itself
              */
@@ -97,17 +94,18 @@ class GatedObject {
                 this[m] = this.__GatedObject_do.bind({ o: this, m });
     }
 
-    __GatedObject_createChannel() {
+    __GatedObject_createChannel(shared) {
         const { port1, port2 } = new MessageChannel();
-        this.thread.postMessage({ newPort: port1 }, [port1]);
+        this.thread.postMessage({ port: port1, shared }, [port1]);
         return port2;
     }
 
     clone() {
+        const newShared = new SharedArrayBuffer(Int32Array.BYTES_PER_ELEMENT);
         return {
             magic: 'GatedObjectMagic',
-            port: this.__GatedObject_createChannel(),
-            shared: this.shared,
+            port: this.__GatedObject_createChannel(newShared),
+            shared: newShared,
             methods: this.methods
         };
     }

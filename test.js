@@ -27,9 +27,9 @@ if (isMainThread) {
             if (finished == NWORKERS) {
                 if (myRBush.all().length !== ops || myRBush.msgCounter != 0)
                     throw new Error('Coherence error ' + myRBush.all().length + ' ' + myRBush.msgCounter);
-                console.log(`sync    mode: ${tsync}ms  ${Math.round(ops * 1000 / tsync)} ops/s`);
-                console.log(`polling mode: ${tpolling}ms  ${Math.round(ops * 1000 / tpolling)} ops/s`);
-                console.log(`async   mode: ${tasync}ms  ${Math.round(ops * 1000 / tasync)} ops/s`);
+                console.log(`sync    mode: ${tsync}ms  ${Math.round(ops * 2000 / tsync)} ops/s`);
+                console.log(`polling mode: ${tpolling}ms  ${Math.round(ops * 2000 / tpolling)} ops/s`);
+                console.log(`async   mode: ${tasync}ms  ${Math.round(ops * 2000 / tasync)} ops/s`);
                 myRBush.thread.terminate();
             }
         }).on('message', (msg) => {
@@ -47,7 +47,7 @@ if (isMainThread) {
     for (let i = 0; i < CALLS; i++)
         myRBush1.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
     for (let i = 0; i < CALLS; i++) {
-        const data = myRBush1.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        const data = myRBush1.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10 });
         if (data.length < 1)
             throw new Error('inconsistency');
     }
@@ -59,7 +59,7 @@ if (isMainThread) {
     for (let i = 0; i < CALLS; i++)
         myRBush2.poll(true);
     for (let i = 0; i < CALLS; i++) {
-        myRBush2.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        myRBush2.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10 });
     }
     for (let i = 0; i < CALLS; i++) {
         const data = myRBush2.poll(true);
@@ -68,16 +68,16 @@ if (isMainThread) {
     }
     let tpolling = Date.now() - t0;
 
-    let p;
+    let p = [];
     t0 = Date.now();
     for (let i = 0; i < CALLS; i++)
-        myRBush3.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        p.push(myRBush3.insert({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i }));
     for (let i = 0; i < CALLS; i++) {
-        p = myRBush3.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10, data: 'data ' + i });
+        p.push(myRBush3.search({ minX: i, minY: i, maxX: i + 10, maxY: i + 10 }));
     }
     let tasync = Date.now() - t0;
     parentPort.postMessage({ tsync, tasync, tpolling });
-    p.then((data) => {
+    Promise.all(p).then((data) => {
         if (data.length < 1)
             throw new Error('inconsistency');
         process.exit(0);
